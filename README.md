@@ -1,8 +1,4 @@
-Sure — here’s your cleaned, emoji-free **README.md** fully formatted in proper Markdown syntax (ready to paste directly into your GitHub repository):
 
----
-
-```markdown
 # Distributed Task Queue System
 
 > A distributed asynchronous task processing system built with Java Spring Boot and Redis. It features task prioritization, retry mechanisms, auto-scaling workers, and a RESTful API for job management. The system handles background processing such as image resizing, email notifications, and data exports, with Docker deployment on AWS.
