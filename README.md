@@ -193,4 +193,3 @@ DEAD (max retries exceeded)
 This project is part of my ongoing effort to understand distributed system architecture beyond abstraction. It is continuously evolving, and each stage reflects deeper insights into scalability, reliability, and system resilience.
 
 **Last Updated:** Week 2 – Redis Implementation Phase
-```
