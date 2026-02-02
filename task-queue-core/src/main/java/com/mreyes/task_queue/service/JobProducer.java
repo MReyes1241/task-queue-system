@@ -2,6 +2,8 @@ package com.mreyes.task_queue.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mreyes.task_queue.model.Job;
+import com.mreyes.task_queue.model.JobHistory;
+import com.mreyes.task_queue.repository.JobHistoryRepository;
 import com.mreyes.task_queue.repository.JobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -18,13 +20,16 @@ public class JobProducer {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
     private final JobRepository jobRepository;
+    private final JobHistoryRepository jobHistoryRepository;
     
     public JobProducer(RedisTemplate<String, Object> redisTemplate, 
                        ObjectMapper objectMapper,
-                       JobRepository jobRepository) { 
+                       JobRepository jobRepository,
+                       JobHistoryRepository jobHistoryRepository) { 
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.jobRepository = jobRepository;
+        this.jobHistoryRepository = jobHistoryRepository;
     }
     
     public boolean submitJob(Job job) {
@@ -32,8 +37,13 @@ public class JobProducer {
             // Save to database FIRST
             job.setStatus("QUEUED");
             job.setCreatedAt(LocalDateTime.now());
+            job.setQueuedAt(LocalDateTime.now());
             jobRepository.save(job);
             logger.info("Job saved to database: {}", job.getId());
+            
+            // Log history entry
+            JobHistory history = new JobHistory(job.getId(), "QUEUED", "Job submitted and queued");
+            jobHistoryRepository.save(history);
             
             // Then push to Redis queue
             String jobJson = objectMapper.writeValueAsString(job);

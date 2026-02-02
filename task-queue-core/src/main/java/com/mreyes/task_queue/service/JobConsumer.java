@@ -2,11 +2,15 @@ package com.mreyes.task_queue.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mreyes.task_queue.model.Job;
+import com.mreyes.task_queue.model.JobHistory;
+import com.mreyes.task_queue.repository.JobHistoryRepository;
 import com.mreyes.task_queue.repository.JobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
 import java.util.concurrent.TimeUnit;
 
 @Service
@@ -17,14 +21,17 @@ public class JobConsumer {
     
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
-    private final JobRepository jobRepository; 
+    private final JobRepository jobRepository;
+    private final JobHistoryRepository jobHistoryRepository;
     
     public JobConsumer(RedisTemplate<String, Object> redisTemplate, 
                        ObjectMapper objectMapper,
-                       JobRepository jobRepository) {
+                       JobRepository jobRepository,
+                       JobHistoryRepository jobHistoryRepository) {
         this.redisTemplate = redisTemplate;
         this.objectMapper = objectMapper;
         this.jobRepository = jobRepository;
+        this.jobHistoryRepository = jobHistoryRepository;
     }
     
     public Job pollJob(long timeout, TimeUnit unit) {
@@ -51,7 +58,11 @@ public class JobConsumer {
             
             // Update status to PROCESSING in database
             job.setStatus("PROCESSING");
+            job.setStartedAt(LocalDateTime.now());
             jobRepository.save(job);
+            
+            // Log history entry
+            logHistory(job.getId(), "PROCESSING", "Job started processing");
             
             // Simulate work based on job type
             switch (job.getType()) {
@@ -71,24 +82,48 @@ public class JobConsumer {
                     break;
                     
                 default:
-                    logger.info(" Processing generic job");
+                    logger.info("Processing generic job");
                     Thread.sleep(1000);
             }
             
             // Mark as completed in database
             job.setStatus("COMPLETED");
+            job.setCompletedAt(LocalDateTime.now());
             jobRepository.save(job);
+            
+            // Log history entry
+            logHistory(job.getId(), "COMPLETED", "Job completed successfully");
+            
             logger.info("Job completed: {}", job.getId());
             
         } catch (InterruptedException e) {
             logger.error("Job processing interrupted: {}", job.getId(), e);
             job.setStatus("FAILED");
+            job.setErrorMessage("Processing interrupted: " + e.getMessage());
             jobRepository.save(job);
+            
+            // Log history entry
+            logHistory(job.getId(), "FAILED", "Processing interrupted: " + e.getMessage());
+            
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             logger.error("Error processing job: {}", job.getId(), e);
             job.setStatus("FAILED");
+            job.setErrorMessage(e.getMessage());
             jobRepository.save(job);
+            
+            // Log history entry
+            logHistory(job.getId(), "FAILED", "Error: " + e.getMessage());
+        }
+    }
+    
+    private void logHistory(String jobId, String status, String message) {
+        try {
+            JobHistory history = new JobHistory(jobId, status, message);
+            jobHistoryRepository.save(history);
+            logger.debug("History logged for job {}: {}", jobId, status);
+        } catch (Exception e) {
+            logger.error("Failed to log history for job {}: {}", jobId, e.getMessage());
         }
     }
 }
