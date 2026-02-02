@@ -24,8 +24,29 @@ public class Job {
     @Column(length = 20, nullable = false)
     private String status;
     
+    @Column(name = "priority")
+    private Integer priority = 0;
+    
+    @Column(name = "max_retries")
+    private Integer maxRetries = 3;
+    
+    @Column(name = "retry_count")
+    private Integer retryCount = 0;
+    
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+    
+    @Column(name = "queued_at")
+    private LocalDateTime queuedAt;
+    
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+    
+    @Column(name = "completed_at")
+    private LocalDateTime completedAt;
+    
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
     
     // Default constructor (required by JPA)
     public Job() {
@@ -38,6 +59,9 @@ public class Job {
         this.data = data;
         this.status = "PENDING";
         this.createdAt = LocalDateTime.now();
+        this.priority = 0;
+        this.maxRetries = 3;
+        this.retryCount = 0;
     }
     
     // Getters and Setters
@@ -73,12 +97,68 @@ public class Job {
         this.status = status;
     }
     
+    public Integer getPriority() {
+        return priority;
+    }
+    
+    public void setPriority(Integer priority) {
+        this.priority = priority;
+    }
+    
+    public Integer getMaxRetries() {
+        return maxRetries;
+    }
+    
+    public void setMaxRetries(Integer maxRetries) {
+        this.maxRetries = maxRetries;
+    }
+    
+    public Integer getRetryCount() {
+        return retryCount;
+    }
+    
+    public void setRetryCount(Integer retryCount) {
+        this.retryCount = retryCount;
+    }
+    
     public LocalDateTime getCreatedAt() {
         return createdAt;
     }
     
     public void setCreatedAt(LocalDateTime createdAt) {
         this.createdAt = createdAt;
+    }
+    
+    public LocalDateTime getQueuedAt() {
+        return queuedAt;
+    }
+    
+    public void setQueuedAt(LocalDateTime queuedAt) {
+        this.queuedAt = queuedAt;
+    }
+    
+    public LocalDateTime getStartedAt() {
+        return startedAt;
+    }
+    
+    public void setStartedAt(LocalDateTime startedAt) {
+        this.startedAt = startedAt;
+    }
+    
+    public LocalDateTime getCompletedAt() {
+        return completedAt;
+    }
+    
+    public void setCompletedAt(LocalDateTime completedAt) {
+        this.completedAt = completedAt;
+    }
+    
+    public String getErrorMessage() {
+        return errorMessage;
+    }
+    
+    public void setErrorMessage(String errorMessage) {
+        this.errorMessage = errorMessage;
     }
     
     @Override
@@ -88,6 +168,7 @@ public class Job {
                 ", type='" + type + '\'' +
                 ", data='" + data + '\'' +
                 ", status='" + status + '\'' +
+                ", retryCount=" + retryCount +
                 ", createdAt=" + createdAt +
                 '}';
     }
