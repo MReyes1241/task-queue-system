@@ -1,6 +1,8 @@
 package com.mreyes.task_queue.repository;
 
 import com.mreyes.task_queue.model.Job;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -30,4 +32,27 @@ public interface JobRepository extends JpaRepository<Job, String> {
            "AND j.nextRetryAt IS NOT NULL " +
            "AND j.nextRetryAt <= :now")
     List<Job> findJobsReadyToRetry(@Param("now") LocalDateTime now);
+
+    // Find all jobs with pagination
+    Page<Job> findAll(Pageable pageable);
+    
+    // Find by status with pagination
+    Page<Job> findByStatus(String status, Pageable pageable);
+    
+    // Find by type with pagination
+    Page<Job> findByType(String type, Pageable pageable);
+    
+    // Find by status AND type with pagination
+    Page<Job> findByStatusAndType(String status, String type, Pageable pageable);
+    
+    long countByType(String type);
+    
+    long countByStatusAndType(String status, String type);
+    
+    @Query("SELECT j.status, COUNT(j) FROM Job j GROUP BY j.status")
+    List<Object[]> countByStatus();
+    
+    @Query("SELECT j.type, COUNT(j) FROM Job j GROUP BY j.type")
+    List<Object[]> countByType();
+
 }
