@@ -7,6 +7,7 @@ import com.mreyes.task_queue.repository.JobHistoryRepository;
 import com.mreyes.task_queue.repository.JobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -44,7 +45,12 @@ public class JobConsumer {
 
             if (jobJson != null) {
                 Job job = objectMapper.readValue(jobJson, Job.class);
-                logger.info("Job received: {}", job.getId());
+                
+                // Add job context to MDC for structured logging
+                MDC.put("job_id", job.getId());
+                MDC.put("job_type", job.getType());
+                
+                logger.info("Job received from queue");
                 return job;
             }
 
@@ -57,7 +63,12 @@ public class JobConsumer {
 
     public void processJob(Job job) {
         try {
-            logger.info("Processing job: {} - Type: {}", job.getId(), job.getType());
+            // Set MDC context for all logs in this method
+            MDC.put("job_id", job.getId());
+            MDC.put("job_type", job.getType());
+            MDC.put("retry_count", String.valueOf(job.getRetryCount()));
+            
+            logger.info("Processing job started");
 
             job.setStatus("PROCESSING");
             job.setStartedAt(LocalDateTime.now());
@@ -67,26 +78,25 @@ public class JobConsumer {
 
             switch (job.getType()) {
                 case "send_email":
-                    logger.info("Sending email to: {}", job.getData());
+                    logger.debug("Sending email", "recipient", job.getData());
                     Thread.sleep(2000);
                     break;
 
                 case "process_image":
-                    logger.info("Processing image: {}", job.getData());
+                    logger.debug("Processing image", "image_path", job.getData());
                     Thread.sleep(3000);
                     break;
 
                 case "generate_report":
-                    logger.info("Generating report: {}", job.getData());
+                    logger.debug("Generating report", "report_type", job.getData());
                     Thread.sleep(4000);
                     break;
 
                 case "fail_test":
-                    // Job type for testing retry logic
                     throw new RuntimeException("Simulated failure for testing");
 
                 default:
-                    logger.info("Processing generic job");
+                    logger.debug("Processing generic job");
                     Thread.sleep(1000);
             }
 
@@ -95,15 +105,22 @@ public class JobConsumer {
             jobRepository.save(job);
 
             logHistory(job.getId(), "COMPLETED", "Job completed successfully");
-            logger.info("Job completed: {}", job.getId());
+            
+            long durationMs = java.time.Duration.between(job.getStartedAt(), job.getCompletedAt()).toMillis();
+            MDC.put("duration_ms", String.valueOf(durationMs));
+            logger.info("Job completed successfully");
 
         } catch (InterruptedException e) {
-            logger.error("Job processing interrupted: {}", job.getId(), e);
+            logger.error("Job processing interrupted", e);
             retryService.handleFailedJob(job, "Processing interrupted: " + e.getMessage());
             Thread.currentThread().interrupt();
         } catch (Exception e) {
-            logger.error("Error processing job: {}", job.getId(), e);
+            MDC.put("error_message", e.getMessage());
+            logger.error("Job processing failed", e);
             retryService.handleFailedJob(job, e.getMessage());
+        } finally {
+            // Clean up MDC to prevent memory leaks
+            MDC.clear();
         }
     }
 
@@ -111,9 +128,9 @@ public class JobConsumer {
         try {
             JobHistory history = new JobHistory(jobId, status, message);
             jobHistoryRepository.save(history);
-            logger.debug("History logged for job {}: {}", jobId, status);
+            logger.debug("History entry saved", "status", status);
         } catch (Exception e) {
-            logger.error("Failed to log history for job {}: {}", jobId, e.getMessage());
+            logger.error("Failed to log history for job", e);
         }
     }
 }

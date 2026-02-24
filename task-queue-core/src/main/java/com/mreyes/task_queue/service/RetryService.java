@@ -6,6 +6,7 @@ import com.mreyes.task_queue.repository.JobHistoryRepository;
 import com.mreyes.task_queue.repository.JobRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -14,7 +15,6 @@ import java.time.LocalDateTime;
 public class RetryService {
 
     private static final Logger logger = LoggerFactory.getLogger(RetryService.class);
-
     private static final long BASE_DELAY_SECONDS = 2;
     private static final long MAX_DELAY_SECONDS = 60;
 
@@ -28,6 +28,11 @@ public class RetryService {
     }
 
     public void handleFailedJob(Job job, String errorMessage) {
+        // Set MDC context
+        MDC.put("job_id", job.getId());
+        MDC.put("job_type", job.getType());
+        MDC.put("retry_count", String.valueOf(job.getRetryCount()));
+        
         job.setErrorMessage(errorMessage);
 
         if (shouldRetry(job)) {
@@ -37,6 +42,7 @@ public class RetryService {
         }
 
         jobRepository.save(job);
+        MDC.clear();
     }
 
     private boolean shouldRetry(Job job) {
@@ -51,9 +57,11 @@ public class RetryService {
         job.setStatus("FAILED");
         job.setNextRetryAt(LocalDateTime.now().plusSeconds(delaySeconds));
 
-        logger.info("Scheduling retry {} of {} for job {} in {} seconds",
-                job.getRetryCount(), job.getMaxRetries(),
-                job.getId(), delaySeconds);
+        MDC.put("retry_attempt", String.valueOf(job.getRetryCount()));
+        MDC.put("max_retries", String.valueOf(job.getMaxRetries()));
+        MDC.put("next_retry_delay_seconds", String.valueOf(delaySeconds));
+        
+        logger.info("Job scheduled for retry");
 
         JobHistory history = new JobHistory(
                 job.getId(),
@@ -67,8 +75,8 @@ public class RetryService {
     private void sendToDeadLetter(Job job) {
         job.setStatus("DEAD_LETTER");
 
-        logger.error("Job {} moved to dead letter queue after {} attempts. Error: {}",
-                job.getId(), job.getRetryCount(), job.getErrorMessage());
+        MDC.put("final_retry_count", String.valueOf(job.getRetryCount()));
+        logger.error("Job moved to dead letter queue after exhausting retries");
 
         JobHistory history = new JobHistory(
                 job.getId(),
